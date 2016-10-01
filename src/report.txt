@@ -1,0 +1,283 @@
+//
+// CS32 Project 3: MiniRogue
+// Name: Zihan Xie
+// ID: 704285618
+// report.docx
+//
+
+
+///////////////////////////////////////////////////////
+// Name of Recursive Goblin Movement Function
+///////////////////////////////////////////////////////
+bool Dungeon::smartSmell
+The implementation of this function is in Dungeon.cpp, line 373.
+
+
+///////////////////////////////////////////////////////
+// Description of the Design of Program
+///////////////////////////////////////////////////////
+The program contains a total of 21 files:
+Twelve .h files: Actor.h, allMonster.h, Dungeon.h, Game.h, gameObject.h, Golden.h, helper.h, Player.h, Room.h, Scroll.h, utilities.h, Weapon.h
+Nine .cpp files: Actor.cpp, allMonster.cpp, Dungeon.cpp, Game.cpp, helper.cpp, main.cpp, Player.cpp, Scroll.cpp, utilities.cpp
+
+There are the following base classes:
+Game, Dungeon, Room, Actor, gameObject;
+Player, Bogeyman, Snakewoman, Dragon, Goblin are derived classes of Actor.
+Golden, Weapon, Scroll are derived classes of gameObject. // Golden is the class for golden idol; staircase is not implemented as a class, but rather as a set of (r,c) coordinate in Dungeon.
+Mace, S_sword, L_sword, M_axe, M_fang are derived classes of Weapon.
+
+The most fundamental switchboard for all classes is Dungeon. Dungeon coordinates the activities of all other classes.
+Dungeon contains three dynamically allocated arrays: m_room, m_monster, m_object; each array contains a list of pointers to dynamically allocated objects of class Room, Actor, gameObject.
+Dungeon also contains a two-dimensional array char m_maze[18][70], that serves as the reference map for all activities.
+In addition, Dungeon has int members recording the capacity and size of each arrays, as well as the row and column coordinates of staircase, and a pointer to a dynamically allocated Golden object.
+
+The class Game is the interface between user and Dungeon.
+Game takes in user input character, determines the appropriate action to be performed, and call the corresponding dungeon member function to perform the task.
+When player enter '>' at the staircase, Game is in charge of preserving the Player object, deleting the old Dungeon object and creating a new Dungeon, and hook up the Player with the new Dungeon.
+In addition, Game collects all the strings to be printed out to the screen, and is in charge of all the printing to the screen.
+
+The class Room contains four int member, which are the row and column of the room's upperleft corner, the height, and the width.
+Room has some accessors member functions, and a member function that returns the row and column of a random point in this room.
+
+The class Actor contains all basic information of an actor, including row and column, strength, armor, dexterity, hitpoint, maxHP, sleepTime (nonzero is asleep);
+Also, Actor class contains a pointer to a dynamically allocated Weapon, and a pointer to the Dungeon the actor is in.
+The Actor's derived class Player contains an array of pointers to gameObject called m_inventory, as well as capacity and size information about the inventory.
+The Actor's derived class Bogeyman, Snakewoman, Goblin, and Dragon are in allMonster.h and allMonster.cpp. They do not have additional data members, but each class has a specific values for all of Actor's data members.
+
+The class gameObject contains only the row and column information.
+The gameObject's derived class Weapon has five derived classes, corresponding to the five weapons in the game. Each class has a damage amount, a dexterity bonus, a name, and a verb.
+Also, Weapon has a member function putToSleep; M_fang (Magic fangs of sleep) returns a int between 2 and 6, while all other Weapon return 0.
+The gameObject's derived class Scroll has a name, a string effect, an int amount, and a char id. The id is used to distinguish between different types of scrolls, which are all objects of class Scroll.
+One special type of scroll, the teleportation scroll, works differently from other scrolls, in that it sets a boolean variable in Dungeon to be true instead of passing its amount. Dungeon will detect this change of boolean variable and relocate the player.
+The gameObject's derived class Golden, standing for golden idol, has no special data member or member functions. Rather, it will set a boolean variable in Game to be true when picked up. Game will detect this change and announce the user's victory.
+
+
+A typical game flow would look like the following:
+	User type in command, say 'h';
+	Game collects the command, determines that it is a direction command. Therefore, Game calls the direction_command member function of m_dungeon, passing 'h' as argument.
+		Dungeon's direction_command function gets the command, computed the coordinate (r,c) that the player is trying to get to. Dungeon then looks at the m_maze[18][70] to determine what is at that location.
+		Suppose m_maze[r][c] is 'D', so this is an attack action. Dungeon then finds in its m_monster[] array the monster located at (r,c), and call player's member function m_player->attack(victim).
+			Player's member function attact() is called, which then automatically collects the player's strength, dexterity, and other information related to making an attack, as well as the information of m_player->weapon().
+			attack() calculates the damage amount and sleepTime to add to the victim, and returns.
+		Dungeon, after attack() returns, will immediately call isDead() member function of Actor to determine if the victim is dead. 
+		Suppose the monster is dead, Dungeon will call its own member function removeMonster, which takes the monster away from m_monster[], deletes the dynamically allocated monster, and decrement m_nMonster.
+	After removing the monster, Dungeon's direction_command() function will return. Game then calls Dungeon's updateMaze member function, which updates the reference map m_maze[18][70] to reflect the change.
+	Next, Game calls Dungeon's monster_move() function. This function automatically lets all monsters who are not asleep in m_monster[] make their appropriate moves.
+		The Dungeon gets called, and for each of its m_monster member, Dungeon will look at the reference map m_maze[18][70] to see if it can attack the player, or if it can smell the player.
+		If a monster can attack the player, Dungeon will call m_monster[i]->attack(player); else if a monster can smell the player, Dungeon will call m_monster[i]->move() to move closer to the player.
+			Assumed monster->move() has been called. The monster will then change its row and column to the one specified by Dungeon (all the work are done by Dungeon; monsters merely change their data member accordingly).
+		After all monsters have their turn, Dungeon's monster_move() function will return to Game.
+	Game will then collect all the messages to be displayed, call Dungeon->updateMaze() and Dungeon->displayMaze(), which prints the dungeon layout to the screen.
+	Game also calls Dungeon->displayStatus which display player statistics, and the messages that stems from actors making attacks against each other.
+	At the end of iteration, Game will prompt user for another input. As long as user input is not 'q', user has not picked up the golden idol, and player is not dead, Game will repeat its iterations.
+
+
+///////////////////////////////////////////////////////
+// None-trivial Algorithms Documentations
+///////////////////////////////////////////////////////
+Following are the pseudo-codes for some non-trivial algorithms, including:
+	monster_move(), which is the function to call to ask all monsters to make their moves;
+	direction_command(), which is the function to call when the user input a direction command (arrow keys or 'h' 'j' 'k' 'l');
+	smartSmell(), which is the recursive algorithm to determine goblin movement;
+	createRoom() and makeConnectedRoom(), which together generate the random layout of all the rooms in the dungeon as well as connect them with corridors;
+Algorithms for other functions are too trivial to write pseudo-codes for; sometimes they seem large and bulky, but mostly they are just repetitive labors and not tricky algorithms.
+There are also extensive comments in the source codes to provide guidance through most of the bulky functions (trivial as they may be).
+
+
+	string Dungeon::monster_move(int smellDistance)
+	{
+		for (int i = 0; i < numberOfMonster; i++)
+		{
+			if monster is asleep
+			{
+				--monster->sleepTime;
+				continue;
+			}
+			if monster is a dragon
+				monster->selfheal()
+				
+			if monster is within one step from player
+				monster->attack(player)
+			else if monster is not smart // not a goblin
+			{
+				if dumbSmell is true // implemented in function dumbSmell, return true if dumb monster can smell player
+					monster->move(in player's direction)
+			}
+			else // is a goblin
+			{
+				if smartSmell is true // implemented in function smartSmell, which sets minimum to (smellDistance+1) and return the next spot for goblin to go if goblin can smell player
+					monster->move(next closer spot returned by smartSmell)
+			}
+		}
+	}
+	
+	string Dungeon::direction_command(char direction)
+	{
+		string message;
+		int R = player->row;
+		int C = player->col;
+		switch(direction)
+		{
+			case up
+				R--;
+			case down
+				R++;
+			case left
+				C--;
+			case right
+				C++;
+		}
+		if maze[R][C] is movable
+			player->move(R,C);
+		else if maze[R][C] is a wall
+			;
+		else // not movable but not a wall, so must be a monster
+		{
+			for (int i = 0; i < numberOfMonster; i++)
+				if (monster[i]->row == R && monster[i]->col == C)
+				{
+					message = player->attack(monster[i]);
+					if monster[i] is dead
+					{
+						dropObject(R, C); // calculate whether an object is dropped, and if true, add an Object to location (R,C)
+						remove(monster[i]);
+					}
+				}	
+		}
+		return message;
+	}
+	
+	
+	bool Dungeon::smartSmell(int sr, int sc, int er, int ec, int count, int &minimum, int &nextr, int &nextc)
+		// This is the goblin recursive movement function.
+		// Initial value of count should be 0; initial value minimum should be set to (smellDistance + 1);
+		// (sr,sc) is the current searching position;
+		// This function should have player's position as starting position, and monster's position as end position;
+		// If the monster can smell the player, this function will set minimum to the step it takes for goblin to get to player;
+		// also, it will set nextr, nextc to the location of goblin's optimal move, and return true.
+		// If the goblin cannot smell the player, this function will return false.
+	{
+		// If the steps it takes to get here is already larger than the current minimal path, just quit searching on this path.
+		if (count+1) >= minimum
+			return false;
+	
+		// We make sure that we visit a location only if the path that gets us to this location is the shortest path known, by the following method:
+		// Each time we visit a location, we inspect the character at this location.
+		// If the character is smaller (in the sense that the integer representing this character is smaller) than or equal to current count,
+		// we know that there is a previous path that gets to this location with fewer steps; therefore we can quit on our current path.
+		// Else if the location is not movable (i.e. is occupied by another monster or wall), we also quit on our path.
+		// Otherwise, we set the character to the one represented by the integer of current count.
+		if (int)maze[sr][sc] <= count
+			return false;
+		else if (sr,sc) is not movable && count != 0 // since when count == 0, the initial position will have the player and is always unmovable
+			return false;
+		maze[sr][sc] = (char)count;
+		
+		// Now, let's visit this location (sr,sc)
+		// If you are standing right next to the target: 
+		// update minimum to (count+1), which is the currently known shortest path to get to (er,ec),
+		// update the closest position to target to the current location, and return true.
+		if (sr,sc) is one step away from (er,ec)
+		{
+			minimum = count + 1;
+			nextr = sr;
+			nextc = sc;
+			return true;
+		}
+		
+		// Otherwise, you are not close to target. Call recursively on the four adjacent spots.
+		// check coordinate at the North of current point
+		bool result1 = smartSmell(sr - 1, sc, er, ec, count + 1, minimum, nextr, nextc);
+		// check coordinate at the East of current point
+		bool result2 = smartSmell(sr, sc + 1, er, ec, count + 1, minimum, nextr, nextc);
+		// check coordinate at the Sorth of current point
+		bool result3 = smartSmell(sr + 1, sc, er, ec, count + 1, minimum, nextr, nextc);
+		// check coordinate at the West of current point
+		bool result4 = smartSmell(sr, sc - 1, er, ec, count + 1, minimum, nextr, nextc);
+
+		// If any of the four recursions found the target, return true; otherwise, return false.
+		return result1 || result2 || result3 || result4;
+	}
+	
+	
+	Room* Dungeon::createRoom(int r, int c, int h, int w)
+		// This function creates a pseudo-random room based on the fed parameters.
+	{
+		if (r or c or h or w) < 0
+			return nullptr;
+		// Generate an upperleft corner at location around (r,c)
+		// and generate a room at with that upperleft corner, whose height and width are smaller than but close to h and w
+		int R = r + randInt(3);
+		int C = c + randInt(4);
+		int H = 4 + randInt(h - 4);
+		int W = 4 + randInt(w - 4);
+		// If the parameters generated would result in a room that touches/crosses the border of dungeon, return nullpointer
+		if (R + H >= 17 || C + W >= 69)
+			return nullptr;
+		// Otherwise, generate the new room and return a pointer to it
+		Room* ptr = new Room(R, C, H, W);
+		return ptr;
+	}
+
+	
+	void Dungeon::makeConnectedRoom()
+		// This function makes use of createRoom function and creates a series of pseudo-random rooms that are connected.
+	{
+		// Imagine the entire dungeon is divided into 3 vertical sections;
+		// The first section contains column number 0-20, the second 21-50, the third 51-69;
+		// The following generators will generate a series of pseudo-random rooms;
+		// Each section will contain equally likely 1 or 2 rooms
+		for (int i = 0; i < 3; i++)
+		{
+			if trueWithProbability(0.5) // 1 room in section i
+			{
+				room[numberOfRoom] = createRoom(some point in section i, some height, some width);
+				if room[numberOfRoom] != nullptr // room generate successful
+					numberOfRoom++;
+			}
+			else // 2 rooms in section i
+			{
+				room[numberOfRoom] = createRoom(some point in upper part of section i, some height, some width);
+				if room[numberOfRoom] != nullptr // room generate successful
+					numberOfRoom++;
+				room[numberOfRoom] = createRoom(some point in lower part of section i, some height, some width);
+				if room[numberOfRoom] != nullptr // room generate successful
+					numberOfRoom++;
+			}
+		}
+		
+		// For every set of two rooms, pick two random points, one in each room;
+		// Set up (1 or 2) corridor(s), which is a room with height/width 1, that connects these two random points.
+		// This guarantees that every two rooms are connected, and hence all the rooms in the dungeon are connected.
+		int n = numberOfRoom;
+		for (int i = 0; i < n - 1; i++)
+		{
+			int r1, c1;
+			room[i]->randPoint(r1, c1); // randPoint is a member function of class Room that sets its two argument to the (r,c) of a random point in this room
+			int r2, c2;
+			room[i + 1]->randPoint(r2, c2);
+			// Create the 1 or 2 corridors that connects the two random points in two rooms.
+			if r1 == r2
+				room[numberOfRoom] = new Room() // such that this room has height 1 and connects (r1,c1) and (r2,c2)
+				numberOfRoom++;
+			else if c1 == c2
+				room[numberOfRoom] = new Room() // such that this room has width 1 and connects (r1,c1) and (r2,c2)
+				numberOfRoom++;
+			else
+			{
+				room[numberOfRoom] = new Room() // such that this room has width 1 and connects (r1,c1) and (r2,c1)
+				room[numberOfRoom+1] = new Room() // such that this room has height 1 and connects (r2,c1) and (r2,c2)
+				numberOfRoom += 2;
+			}
+		}
+		for (int i = 0; i < numberOfRoom; i++)
+			buildRoom(i); // this function update the character maze[18][70] to reflect all the rooms in array m_room[].
+	}
+	
+	
+///////////////////////////////////////////////////////
+// List of known bugs, features not implemented, or inefficiencies
+///////////////////////////////////////////////////////
+There is no known bugs. Every bug to my knowledge has been fixed. Every feature to my knowledge has been implemented correctly.
+The program demonstrates no significant difference from the sample program given in the spec.
+	
